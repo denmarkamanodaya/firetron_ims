@@ -176,6 +176,7 @@ class ConsolidatedGuiController extends Controller
 		$products_obj = \DB::select("SELECT product_id, product_code, product_name FROM products WHERE is_active = 1 AND type_id = 1");
 		
 		$thead = "<tr><td style='min-width: 420px; background-color:#fff'>
+		<br/>Visit <a href='/gui/buy-and-sell'>Buy & Sell</a> Interface?<br/><br/>
 		Mapping Type: <span class='toggle_type_info'>BRAND_NEW</span><span class='toggle_type_info' style='display: none'>REFILL</span> <a href='#' class='toggle-type'>[!?]</a><br/>
 		<br/>
 		Component <a id='add-new-component' data-type='components' href='#'>[+]</a> 
@@ -189,7 +190,7 @@ class ConsolidatedGuiController extends Controller
 			$remaining_obj = \DB::select("SELECT quantity FROM quantity WHERE code_id = '{$value->product_code}'");
 
 			$thead .= "<td style='background-color:#fff; min-width: 75px'  class='touchable {$value->product_code}' data-col='{$value->product_code}'>
-				{$value->product_name} / {$remaining_obj[0]->quantity} / {$value->product_code} 
+				{$value->product_name} / {$remaining_obj[0]->quantity} 
 					<br/>
 					<a class='edit-mapping' data-product-code='{$value->product_code}' href='#'>[e]</a>  
 					<a class='add-mapping' data-product-code='{$value->product_code}' href='#''>[+]</a>  
@@ -213,7 +214,11 @@ class ConsolidatedGuiController extends Controller
                 if($key_1 == 0)
                 {
                     $remaining_obj = \DB::select("SELECT quantity FROM quantity WHERE code_id = '{$value->component_code}'");
-                    $row_data[$value->component_code][$value->component_code] = "<a class='tracking-content-button' data-component-code='{$value->component_code}' href='#'>" . $value->component_name . " / " . $remaining_obj[0]->quantity . " / " . $value->component_code . "</a> <a style='color:#ff0000' href='#' class='delete-component' data-type='components' data-code='{$value->component_code}'>[x]</a>";
+                    $row_data[$value->component_code][$value->component_code] = "<a class='tracking-content-button' data-component-code='{$value->component_code}' href='#'>" . $value->component_name . " / " . $remaining_obj[0]->quantity . "</a> 
+<a style='color:#ff0000' href='#' class='add-raw-component' data-type='add' data-code='{$value->component_code}'>[+]</a>
+                    	<a style='color:#ff0000' href='#' class='subtract-raw-component' data-type='subtract' data-code='{$value->component_code}'>[-]</a>
+                    	--
+<a style='color:#ff0000' href='#' class='delete-component' data-type='components' data-code='{$value->component_code}'>[x]</a>";
                 }
 
                 // Get product& component ids
@@ -270,7 +275,7 @@ class ConsolidatedGuiController extends Controller
 	{
 		echo "<table bgcolor='#bbb' cellspacing='1' cellpadding='3' id='main-table-ui'>";
 
-		echo "<tr><td style='background-color:#fff'>Product Code</td><td style='background-color:#fff'>Product Name</td><td style='background-color:#fff'>Quantity</td><td style='background-color:#fff'>Total # of Purchase</td></tr>";
+		echo "<tr><td style='background-color:#fff'>Product Code</td><td style='background-color:#fff'>Product Name</td><td style='background-color:#fff'>Quantity</td><td style='background-color:#fff'>Total # of Purchase</td><td style='background-color:#fff'></td></tr>";
 
 		$product_obj = \DB::select("SELECT product_name, product_code FROM products WHERE type_id = 2 AND is_active = 1");
 
@@ -291,7 +296,7 @@ class ConsolidatedGuiController extends Controller
 			// Get total purchased
 			$purchased_obj = \DB::select("SELECT count(order_meta_id) AS total_purchased FROM order_meta WHERE product_code = '{$value->product_code}'");
 
-			echo "<td>{$purchased_obj[0]->total_purchased}</td>";
+			echo "<td>{$purchased_obj[0]->total_purchased}</td><td> <a style='color:#ff0000' href='#' class='delete-product' data-type='products' data-code='{$value->product_code}'>[x]</a></td>";
 
 			echo "</tr>";
 
@@ -447,29 +452,60 @@ class ConsolidatedGuiController extends Controller
 			echo "No data.";
 		}
 	 */
+
 	public function full($component_code)
 	{
 		$order_meta_obj = \DB::select("
-			SELECT sub.app_number, sub.item_value, sub.mapping_type, sub.total_product, sub.total, p.product_name, sub.item_name
-			FROM products AS p 
-			RIGHT JOIN 
-			(SELECT item_value, mapping_type, app_number, count(product_code) AS total_product, sum(item_value) AS total, 
-			product_code,
-			item_name
-			FROM order_meta_reference 
-			WHERE item_code = '{$component_code}' 
-			AND item_type = 'RAW_MATERIALS'
-			GROUP BY app_number, product_code, item_name, item_value, mapping_type) AS sub
-			ON sub.product_code = p.product_code;
+
+SELECT * 
+FROM
+(
+	SELECT '-' AS operand, sub.app_number, sub.item_value, sub.mapping_type, sub.total_product, sub.total, p.product_name, sub.item_name, sub.created_at
+	FROM products AS p 
+	RIGHT JOIN 
+	(
+		SELECT o.item_value, o.mapping_type, o.app_number, count(o.product_code) AS total_product, sum(o.item_value) AS total, 
+		o.product_code,
+		o.item_name, r.created_at
+		FROM order_meta_reference AS o
+		INNER JOIN orders AS r 
+		ON o.app_number = r.app_number
+		WHERE o.item_code = '{$component_code}' 
+		AND o.item_type = 'RAW_MATERIALS'
+		GROUP BY o.app_number, o.product_code, o.item_name, o.item_value, o.mapping_type, r.created_at
+	) AS sub
+	ON sub.product_code = p.product_code
+
+UNION
+
+	SELECT 
+	operator AS operand,
+	NULL AS app_number, 
+	NULL AS item_value, 
+	NULL AS mapping_type,
+	NULL AS total_product,
+	total,
+	description AS product_name,
+	description as item_name,
+	timestamp AS created_at FROM 
+	component_raw_trail
+	WHERE component_id = '{$component_code}'
+)
+sub
+ORDER BY created_at DESC;
 		");
 		
 		if( ! empty($order_meta_obj))
 		{
+			// Get component_name
+			$component_obj = \DB::select("SELECT component_name FROM components WHERE component_code = '{$component_code}'");
+
 			// Get quantity 
 			$quantity_obj = \DB::select("SELECT quantity FROM quantity WHERE code_id = '{$component_code}'");
+
 			echo "<span style='float:right'><a href='#' id='tracking-content-container-x-button'>[x]</a></span>";
-			echo "<h3>{$order_meta_obj[0]->item_name}</h3>Remaining Quantity: {$quantity_obj[0]->quantity}<br/<br/><br/><table bgcolor='#bbb' cellspacing='1' cellpadding='5'>";
-			echo "<tr><td style='background-color: #fff'>APP_NUMBER</td><td style='background-color: #fff'>PRODUCT_NAME</td><td style='background-color: #fff'>TYPE</td><td style='background-color: #fff'>MAPPING_VALUE</td><td style='background-color: #fff'>TOTAL_PRODUCT</td><td style='background-color: #fff'>TOTAL_DEDUCTIONS</td></tr>";
+			echo "<h3>{$component_obj[0]->component_name}</h3>Remaining Quantity: {$quantity_obj[0]->quantity}<br/<br/><br/><table bgcolor='#bbb' cellspacing='1' cellpadding='5'>";
+			echo "<tr><td style='background-color: #fff'>APP_NUMBER</td><td style='background-color: #fff'>PRODUCT_NAME / DESC</td><td style='background-color: #fff'>TYPE</td><td style='background-color: #fff'>MAPPING_VALUE</td><td style='background-color: #fff'>TOTAL_PRODUCT</td><td style='background-color: #fff'>TOTAL</td><td style='background-color: #fff'>CREATED_AT</td></tr>";
 
 			foreach($order_meta_obj AS $key => $value)
 			{
@@ -478,7 +514,8 @@ class ConsolidatedGuiController extends Controller
 				<td style='background-color: #fff'>{$value->mapping_type}</td>
 				<td style='background-color: #fff'>{$value->item_value}</td>
 				<td style='background-color: #fff'>{$value->total_product}</td>
-				<td style='background-color: #fff'>-{$value->total}</td></tr>";
+				<td style='background-color: #fff'>{$value->operand}{$value->total}</td>
+				<td style='background-color: #fff'>{$value->created_at}</td></tr>";
 			}
 		}
 		else
@@ -490,6 +527,10 @@ class ConsolidatedGuiController extends Controller
 		}
 		echo "<script src='/twb/js/jquery.js'></script><script src='/twb/js/gui.js'></script>";
 	}
+
+
+
+
 
 	/*
 	 | ----------------------------------------------------------------------------
@@ -701,8 +742,9 @@ class ConsolidatedGuiController extends Controller
 		</div>
 
 		<div 
-		class='create-component-product-container tracking-content-container tracking-bns-content-container delete-component-product-container shadow' 
-		style='min-height: 1000;padding: 10px;width: 650px;border: 1px solid #ccc;background-color: #fff;float: left;position: fixed;left: 30%;top: 15%;display: none'>
+		class='create-component-product-container tracking-content-container tracking-bns-content-container delete-component-product-container component-raw-container shadow' 
+		style='min-height: 1000;padding: 10px;width: 650px; height:450px;overflow-y:scroll;border: 1px solid #ccc;background-color: 
+		#fff;float: left;position: fixed;left: 30%;top: 15%;display: none'>
 		</div>
 
 		<script src='/twb/js/jquery.js'></script><script src='/twb/js/gui.js'></script>
@@ -1152,6 +1194,73 @@ class ConsolidatedGuiController extends Controller
 		}
 
 		echo "{$name} successfully deleted! <br/><br/>";
+		ob_end_flush();
+
+		return \Redirect::away('http://192.168.1.100:8080/gui');	
+	}
+
+	/*
+	 | ----------------------------------------------------------------------------
+	 | @resource TITLE
+	 | ----------------------------------------------------------------------------
+	 | 
+	 | @author <denmarkamanodaya@gmail.com>
+	 | @date 
+	 |
+	 | @description
+	 |
+	 |
+	 */
+	public function modifyComponentQuantity($type, $code)
+	{
+		$component_obj 	= \DB::select("SELECT component_id, component_name FROM components WHERE component_code = '{$code}'");
+		echo "
+		<span style='float:right'><a href='#' id='remove-mapping-container-x-button'>[x]</a></span>
+		<form action='/components/quantity' method='POST' id='component-quantity-modify-form-id'>
+		<h3>{$component_obj[0]->component_name}</h3>
+		Check components to remove:<br/><br/>
+		<table bgcolor='#bbb' cellspacing='1' cellpadding='5'>";
+		echo "<tr><td style='background-color: #fff'>OPERATOR</td><td style='background-color: #fff'>QUANTITY</td><td style='background-color: #fff'>DESC</td><td style='background-color: #fff'></td></tr>
+		";
+	
+		echo "<tr><td style='background-color: #fff'>{$type}</td>
+			 <td style='background-color: #fff'><input type='text' name='component-quantity-value' id='component-quantity-value' /></td>
+			 <td style='background-color: #fff'><input type='text' name='component-quantity-desc' id='component-quantity-desc' /></td>
+			 <td style='background-color: #fff'>
+			 <input type='button' id='component-quantity-modify-save-button' value='Save' onClick='saveComponentQuantityModify()' /></td></tr></table>
+			<input type='hidden' name='type' value='{$type}' />
+			<input type='hidden' name='code' value='{$code}' />
+			</form>";
+		echo "<script src='/twb/js/jquery.js'></script><script src='/twb/js/gui.js'></script>";	
+	}
+
+	/*
+	 | ----------------------------------------------------------------------------
+	 | @resource TITLE
+	 | ----------------------------------------------------------------------------
+	 | 
+	 | @author <denmarkamanodaya@gmail.com>
+	 | @date 
+	 |
+	 | @description
+	 |
+	 |
+	 */
+	public function modifyComponentQuantitySave(Request $request)
+	{
+		// Insert to raw trail table
+		$desc 		= $request->{'component-quantity-desc'};
+		$total 		= $request->{'component-quantity-value'};
+		$operator 	= (strtoupper($request->type) == 'ADD' ? '+' : '-');
+		$quantity_obj 		= \DB::select("SELECT quantity FROM quantity WHERE code_id = '{$request->code}'");
+		$current_quantity 	= $quantity_obj[0]->quantity;
+
+		\DB::select("INSERT into component_raw_trail (component_id, description, total, operator) VALUES ('{$request->code}', '{$desc}', '{$total}', '{$operator}')");
+
+		// Update quantity table
+		\DB::select("UPDATE quantity SET quantity = ({$current_quantity} {$operator} {$total}) WHERE code_id = '{$request->code}'");		
+
+
 		ob_end_flush();
 
 		return \Redirect::away('http://192.168.1.100:8080/gui');	

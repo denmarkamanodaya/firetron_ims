@@ -21,6 +21,7 @@ class VerifyCsrfToken extends BaseVerifier
 	'/components/create-save',
 	'/products/create-save',
 	'/mapping/add/save',
-	'/delete/*'
+	'/delete/*',
+	'components/quantity'
     ];
 }

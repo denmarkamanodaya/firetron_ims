@@ -91,7 +91,8 @@
 	Route::get('/mapping/{service_type}/{product_code}',		'Core\ProductMappingController@show');
 	Route::get('/mapping/create',				['uses' => 'Core\ProductMappingController@create', 'as' => 'mapping.create']);
 	Route::post('/mapping/create',				['uses' => 'Core\ProductMappingController@save', 'as' => 'mapping.save']);
-
+	Route::get('/components/quantity/{type}/{code}',		['uses' => 'Core\ConsolidatedGuiController@modifyComponentQuantity', 'as' => 'components.quantity.modify']);
+	Route::post('/components/quantity',			['uses' => 'Core\ConsolidatedGuiController@modifyComponentQuantitySave', 'as' => 'components.quantity.save']);
 
 
 

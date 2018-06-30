@@ -155,6 +155,14 @@ $("#delete_verification").change(function()
 	}
 });
 
+$(".add-raw-component, .subtract-raw-component").on('click', function(){
+	var type = $(this).data('type');
+	var code = $(this).data('code');
+	//console.log(type,code);
+	$("#overlay").css('display','block');
+	$(".component-raw-container").html('');	
+	$(".component-raw-container").css('display', 'block').load('/components/quantity/' + type + '/' + code);
+});
 
 
 
@@ -205,4 +213,9 @@ function saveCreatedProduct()
 function finalDelete()
 {
 	$("#delete-form-id").submit();
+}
+
+function saveComponentQuantityModify()
+{
+	$("#component-quantity-modify-form-id").submit();
 }
