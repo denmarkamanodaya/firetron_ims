@@ -1265,4 +1265,5 @@ ORDER BY created_at DESC;
 
 		return \Redirect::away('http://192.168.1.100:8080/gui');	
 	}
+
 }
